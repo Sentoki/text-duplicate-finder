@@ -9,6 +9,8 @@ from src.models import (
     EmbedBatchResponse,
     EmbedRequest,
     EmbedResponse,
+    SimilarityRequest,
+    SimilarityResponse,
 )
 
 app = FastAPI(
@@ -66,3 +68,58 @@ def embed_batch(request: EmbedBatchRequest) -> EmbedBatchResponse:
     stub_embeddings = [[0.0] * dimension for _ in request.texts]
 
     return EmbedBatchResponse(embeddings=stub_embeddings, dimension=dimension, count=len(request.texts))
+
+
+def calculate_cosine_similarity(vector1: list[float], vector2: list[float]) -> float:
+    """
+    Calculate cosine similarity between two vectors.
+
+    Args:
+        vector1: First embedding vector
+        vector2: Second embedding vector (must be same length as vector1)
+
+    Returns:
+        Cosine similarity value between -1 and 1
+        - 1.0 = identical vectors
+        - 0.0 = orthogonal vectors
+        - -1.0 = opposite vectors
+
+    Note:
+        Assumes vectors are already normalized. If not normalized,
+        the result is still a valid cosine similarity.
+    """
+    # Calculate dot product
+    dot_product = sum(a * b for a, b in zip(vector1, vector2, strict=True))
+
+    # Calculate magnitudes
+    magnitude1 = sum(a * a for a in vector1) ** 0.5
+    magnitude2 = sum(b * b for b in vector2) ** 0.5
+
+    # Avoid division by zero
+    if magnitude1 == 0.0 or magnitude2 == 0.0:
+        return 0.0
+
+    # Calculate cosine similarity
+    return float(dot_product / (magnitude1 * magnitude2))
+
+
+@app.post("/similarity", response_model=SimilarityResponse)
+def calculate_similarity(request: SimilarityRequest) -> SimilarityResponse:
+    """
+    Calculate cosine similarity between two embedding vectors.
+
+    Args:
+        request: Request containing two vectors to compare
+
+    Returns:
+        SimilarityResponse with similarity score, duplicate flag, and threshold
+
+    Note:
+        Threshold for duplicate detection is 0.85 (cosine similarity >= 0.85).
+        This value is recommended for BAAI/bge-large-en-v1.5 embeddings.
+    """
+    threshold = 0.85
+    similarity = calculate_cosine_similarity(request.vector1, request.vector2)
+    is_duplicate = similarity >= threshold
+
+    return SimilarityResponse(similarity=similarity, is_duplicate=is_duplicate, threshold=threshold)

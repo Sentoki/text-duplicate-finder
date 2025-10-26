@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -70,3 +72,34 @@ class EmbedBatchResponse(BaseModel):
             if not embedding:
                 raise ValueError(f"Embedding at index {i} cannot be empty")
         return value
+
+
+class SimilarityRequest(BaseModel):
+    """Request model for similarity calculation between two vectors."""
+
+    vector1: list[float] = Field(..., min_length=1, description="First embedding vector")
+    vector2: list[float] = Field(..., min_length=1, description="Second embedding vector")
+
+    @field_validator("vector1", "vector2")
+    @classmethod
+    def check_vector_not_empty(cls, value: list[float]) -> list[float]:
+        """Validate that vector is not empty."""
+        if not value:
+            raise ValueError("Vector cannot be empty")
+        return value
+
+    @field_validator("vector2")
+    @classmethod
+    def check_same_dimension(cls, value: list[float], info: Any) -> list[float]:
+        """Validate that vector2 has same dimension as vector1."""
+        if "vector1" in info.data and len(info.data["vector1"]) != len(value):
+            raise ValueError(f"Vectors must have the same dimension. Got {len(info.data['vector1'])} and {len(value)}")
+        return value
+
+
+class SimilarityResponse(BaseModel):
+    """Response model for similarity calculation."""
+
+    similarity: float = Field(..., ge=-1.0, le=1.0, description="Cosine similarity between vectors")
+    is_duplicate: bool = Field(..., description="Whether vectors are considered duplicates")
+    threshold: float = Field(..., description="Threshold used for duplicate detection")
