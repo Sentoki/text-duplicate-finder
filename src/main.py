@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from src.embeddings import EmbeddingModel
 from src.models import (
     EmbedBatchRequest,
     EmbedBatchResponse,
@@ -19,6 +20,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Initialize embedding model singleton
+embedding_model = EmbeddingModel()
+
 
 @app.post("/embed", response_model=EmbedResponse)
 def embed_text(request: EmbedRequest) -> EmbedResponse:
@@ -32,17 +36,13 @@ def embed_text(request: EmbedRequest) -> EmbedResponse:
         EmbedResponse with embedding vector and dimension
 
     Note:
-        Currently returns a static stub vector instead of real embeddings.
-        Real implementation will use BAAI/bge-large-en-v1.5 model.
+        Uses BAAI/bge-large-en-v1.5 model for generating embeddings.
+        Returns normalized vectors for efficient cosine similarity computation.
     """
-    # Static stub: return 1024-dimensional zero vector
-    # BAAI/bge-large-en-v1.5 produces 1024-dimensional embeddings
-    # TODO: Replace with actual embedding generation using request.text
-    _ = request  # Acknowledge parameter (will be used when implementing real embeddings)
-    dimension = 1024
-    stub_embedding = [0.0] * dimension
+    # Generate embedding using the model
+    embedding = embedding_model.encode(request.text)
 
-    return EmbedResponse(embedding=stub_embedding, dimension=dimension)
+    return EmbedResponse(embedding=embedding, dimension=len(embedding))
 
 
 @app.post("/embed/batch", response_model=EmbedBatchResponse)
@@ -57,17 +57,14 @@ def embed_batch(request: EmbedBatchRequest) -> EmbedBatchResponse:
         EmbedBatchResponse with list of embedding vectors, dimension, and count
 
     Note:
-        Currently returns static stub vectors instead of real embeddings.
-        Real implementation will use BAAI/bge-large-en-v1.5 model with batching.
+        Uses BAAI/bge-large-en-v1.5 model with efficient batching.
+        Returns normalized vectors for efficient cosine similarity computation.
     """
-    # Static stub: return 1024-dimensional zero vectors for each text
-    # BAAI/bge-large-en-v1.5 produces 1024-dimensional embeddings
-    # TODO: Replace with actual batch embedding generation using request.texts
-    _ = request  # Acknowledge parameter (will be used when implementing real embeddings)
-    dimension = 1024
-    stub_embeddings = [[0.0] * dimension for _ in request.texts]
+    # Generate embeddings using batch processing
+    embeddings = embedding_model.encode_batch(request.texts)
+    dimension = len(embeddings[0]) if embeddings else 1024
 
-    return EmbedBatchResponse(embeddings=stub_embeddings, dimension=dimension, count=len(request.texts))
+    return EmbedBatchResponse(embeddings=embeddings, dimension=dimension, count=len(embeddings))
 
 
 def calculate_cosine_similarity(vector1: list[float], vector2: list[float]) -> float:
