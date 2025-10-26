@@ -1,0 +1,1 @@
+"""Text duplicate finder service."""
